@@ -1,0 +1,279 @@
+---
+title: 'Comparative Analysis of Ease of Doing Business: India vs. G7 Countries'
+author: "Siddhi Gholap"
+date: "2024-12-11"
+output: html_document
+---
+This analysis compares India with G7 countries on the Ease of Doing Business, focusing on metrics like "Starting a Business," "Paying Taxes," and overall scores. Using visualizations and geographic mapping, it highlights India's challenges in bureaucracy, compliance costs, and procedural delays compared to the streamlined processes in G7 countries. The study identifies critical gaps, suggests adopting G7 best practices, and emphasizes reforms in regulatory frameworks, tax systems, and technological adoption to foster a competitive business environment in India.
+
+```{r, warning=FALSE, message=FALSE}
+library(readxl)  
+library(dplyr)   
+library(ggplot2) 
+library(leaflet) 
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+raw_data <- read_excel("C:/Users/Lenovo/Desktop/Sid/EDB.xlsx")
+
+```
+Filters data and selects only G7 countries and India for analysis.<br>
+Selects relevant columns and removes missing values.<br>
+Creates a new column "Average Score" as the mean of all the selected metrics for each country.
+```{r}
+g7_countries <- c("Canada", "France", "Germany", "Italy", "Japan", "United Kingdom", "United States")
+cleaned_data <- raw_data %>%
+  filter(Economy %in% c(g7_countries, "India")) %>%
+  select(Economy, Region, `Ease of doing business score`, 
+         `Score-Starting a business`, `Score-Registering property`, 
+         `Score-Paying taxes`, `Score-Getting electricity`) %>%
+  na.omit() %>% 
+  mutate(Average_Score = rowMeans(across(starts_with("Score")), na.rm = TRUE))
+```
+The data is sorted by the "Ease of doing business score."<br>
+The top 10 countries with the highest scores are selected.<br>
+The table is printed to display these rankings.
+```{r}
+summary_table <- cleaned_data %>%
+  arrange(desc(`Ease of doing business score`)) %>%
+  head(10)  
+
+# Print the table
+print(summary_table)
+```
+####1.Bar Plot: A clear visual comparison of G7 countries and India, helping highlight the relative positions of the countries.
+The final plot:<br>
+Title: "Ease of Doing Business: G7 Countries vs. India"<br>
+X-axis: Displays the countries.<br>
+Y-axis: Displays the "Ease of Doing Business Score" for each country.
+```{r, warning=FALSE, message=FALSE}
+ggplot(cleaned_data, aes(x = reorder(Economy, -`Ease of doing business score`), y = `Ease of doing business score`)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Ease of Doing Business: G7 Countries vs. India",
+       x = "Country",
+       y = "Ease of Doing Business Score") +
+  theme_minimal()
+```
+####2.Box Plot: The distribution of scores and differences in procedural requirements between G7 countries and India.
+Title: "Starting a Business Scores: G7 Countries vs. India"<br>
+X-axis: Displays the countries.<br>
+Y-axis: Displays the "Score-Starting a business".
+```{r, warning=FALSE, message=FALSE}
+ggplot(cleaned_data, aes(x = Economy, y = `Score-Starting a business`)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Starting a Business Scores: G7 Countries vs. India",
+       x = "Country",
+       y = "Score") +
+  theme_minimal()
+```
+####3. Trend Analysis: Score Changes Over Time-to identify whether countries are improving, stagnating, or worsening in specific areas.
+```{r, warning=FALSE, message=FALSE}
+library(tidyr)
+
+cleaned_data2 <- raw_data %>%
+  filter(Economy %in% c(g7_countries, "India")) %>%
+  select(Economy, `DB year`, Region,
+         `Ease of doing business score`, 
+         `Score-Starting a business`, `Score-Registering property`, 
+         `Score-Paying taxes`, `Score-Getting electricity`) %>%
+  mutate(Average_Score = rowMeans(across(starts_with("Score")), na.rm = TRUE))
+
+g7_india_trend <- cleaned_data2 %>%
+  filter(Economy %in% c(g7_countries, "India")) %>%  
+  group_by(Economy,`DB year`) %>%  # Group by Economy and DB year
+  summarise(across(starts_with("Score-"), mean, na.rm = TRUE)) %>%  # Summarize scores
+  pivot_longer(cols = starts_with("Score-"), names_to = "Metric", values_to = "Score")
+
+
+g7_colors <- c("Canada" = "#1f77b4",  # Light blue
+               "France" = "#6baed6",  # Medium blue
+               "Germany" = "#2171b5",  # Dark blue
+               "Italy" = "#08519c",   # Navy blue
+               "Japan" = "#4292c6",   # Sky blue
+               "UK" = "#6baed6",      # Medium blue
+               "US" = "#08306b",
+               "India" = "#ffab00")  # Yellow for India
+```
+####Plot with customized color palette
+```{r}
+library(ggplot2)
+g7_india_trend <- na.omit(g7_india_trend)
+ggplot(g7_india_trend, aes(x = `DB year`, y = Score, color = Economy, group = Economy)) +
+  geom_line(linewidth = 1.2) +  
+  geom_point(size = 3) +  
+  facet_wrap(~ Metric, scales = "free_y") +  
+  labs(title = "Ease of Doing Business Score Trends: G7 vs. India",
+       x = "Year",
+       y = "Score") +
+  scale_color_manual(values = g7_colors) +  
+  theme_minimal(base_size = 15) +  
+  theme(legend.position = "bottom", 
+        legend.title = element_blank(),
+        panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank(),
+        strip.text = element_text(size = 12, face = "bold")) +
+  guides(color = guide_legend(title = "Economy", override.aes = list(size = 3))) 
+
+
+```
+####4. A line plot showing the trends of the Ease of Doing Business scores for the G7 countries and India over different years.
+#### A benchmarking analysis comparing India's "Starting a Business" score with the top 3 G7 countries.
+```{r}
+top_g7_countries <- cleaned_data2 %>%
+  filter(Economy %in% g7_countries) %>%
+  group_by(Economy) %>%
+  summarise(average_score = mean(`Score-Starting a business`, na.rm = TRUE)) %>%
+  arrange(desc(average_score)) %>%
+  head(3) 
+
+
+comparison_data <- cleaned_data %>%
+  filter(Economy %in% c(top_g7_countries$Economy, "India"))
+
+
+comparison_data <- comparison_data %>%
+  mutate(`Score-Starting a business` = ifelse(is.na(`Score-Starting a business`), 0, `Score-Starting a business`))
+
+
+ggplot(comparison_data, aes(x = Economy, y = `Score-Starting a business`, fill = Economy)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
+  geom_bar(data = comparison_data %>% filter(Economy == "India"), 
+           stat = "identity", fill = "yellow", position = position_dodge(width = 0.8)) +
+  labs(title = "Benchmarking India Against Top G7 Countries",
+       x = "Country",
+       y = "Score") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Germany" = "blue", "Italy" = "blue", 
+                               "Japan" = "blue", "UK" = "blue", "India" = "yellow")) +
+  theme(legend.position = "bottom") +
+  guides(fill = guide_legend(title = "Country"))
+
+```
+####5. Summary Statistics: key performance metrics (mean, max, min, median) for G7 countries and India.
+```{r}
+g7_summary <- cleaned_data %>%
+  filter(Economy %in% c(g7_countries, "India")) %>%
+  summarise(
+    Avg_Ease_Business_Score = mean(`Ease of doing business score`, na.rm = TRUE),
+    Max_Score = max(`Ease of doing business score`, na.rm = TRUE),
+    Min_Score = min(`Ease of doing business score`, na.rm = TRUE),
+    Median_Score = median(`Ease of doing business score`, na.rm = TRUE)
+  )
+
+print(g7_summary)
+
+
+cat("Key Insights:\n")
+cat("- The average Ease of Doing Business score for the G7 countries and India is:", g7_summary$Avg_Ease_Business_Score, "\n")
+cat("- The maximum score among these countries is:", g7_summary$Max_Score, "\n")
+cat("- The minimum score among these countries is:", g7_summary$Min_Score, "\n")
+cat("- Median score is:", g7_summary$Median_Score, "\n")
+
+```
+####6. Integrating map visualization and the broader analysis into a cohesive storyline
+```{r}
+g7_countries <- c("Canada", "France", "Germany", "Italy", "Japan", "United Kingdom", "United States")
+
+cleaned_data4 <- raw_data %>%
+  filter(Economy %in% c(g7_countries, "India")) %>%
+  select(Economy, `Ease of doing business score`) %>%
+  mutate(Economy = case_when(
+    Economy == "United Kingdom" ~ "UK",  # Adjust naming conventions if necessary
+    TRUE ~ Economy
+  ))
+geo_data <- data.frame(
+  Economy = c("Canada", "France", "Germany", "Italy", "Japan", "United Kingdom", "United States", "India"),
+  Latitude = c(56.1304, 46.6034, 51.1657, 41.8719, 36.2048, 55.3781, 37.0902, 20.5937),
+  Longitude = c(-106.3468, 1.8883, 10.4515, 12.5674, 138.2529, -3.4360, -95.7129, 78.9629)
+)
+
+
+# Merge latitude and longitude into cleaned_data
+cleaned_data4 <- cleaned_data4 %>%
+  left_join(geo_data, by = "Economy")
+
+# Load world shapefile
+world <- ne_countries(scale = "medium", returnclass = "sf") %>%
+  mutate(Economy = admin)  # Ensure `Economy` column exists for merging
+
+# Merge cleaned_data with world shapefile
+merged_data <- left_join(world, cleaned_data4, by = "Economy")
+
+# Check for missing values in the merged data
+missing_data <- anti_join(cleaned_data4, world, by = "Economy")
+if (nrow(missing_data) > 0) {
+  print("The following countries did not match and need manual adjustment:")
+  print(missing_data)
+}
+
+# Create a color palette based on the 'Ease of Doing Business Score'
+pal <- colorNumeric(
+  palette = "YlGnBu",  # Yellow to blue color scale
+  domain = merged_data$`Ease of doing business score`,
+  na.color = "transparent"  # Handle missing values
+)
+
+# Create the Leaflet map
+leaflet(merged_data) %>%
+  addProviderTiles(providers$CartoDB.DarkMatter) %>%  # Add a dark theme
+  addPolygons(
+    fillColor = ~pal(`Ease of doing business score`),  # Color based on score
+    weight = 1,
+    color = "white",  # Border color
+    fillOpacity = 0.8,
+    highlight = highlightOptions(
+      weight = 2,
+      color = "yellow",
+      bringToFront = TRUE
+    ),
+    popup = ~paste(
+      "<strong>", Economy, "</strong><br>",
+      "Ease of Doing Business Score: ", `Ease of doing business score`
+    )
+  ) %>%
+  addLegend(
+    position = "bottomright",
+    pal = pal,
+    values = ~`Ease of doing business score`,
+    title = "Ease of Doing Business Score",
+    opacity = 1
+  )
+```
+####7. Comparative Metric Analysis: Provides further detailed comparisons in specific metrics like "Starting a Business" and "Paying Taxes," pinpointing areas of policy focus.
+#####Plot: Starting a Business Scores (procedures, time, cost)
+```{r, warning=FALSE, message=FALSE}
+ggplot(cleaned_data, aes(x = Economy, y = `Score-Starting a business`)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Starting a Business Scores: G7 Countries vs. India",
+       x = "Country",
+       y = "Score") +
+  theme_minimal()
+```
+#####Plot Paying Taxes Scores (payments, time, total tax rate)
+```{r, warning=FALSE, warning=FALSE}
+ggplot(cleaned_data, aes(x = Economy, y = `Score-Paying taxes`)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Paying Taxes Scores: G7 Countries vs. India",
+       x = "Country",
+       y = "Score") +
+  theme_minimal()
+```
+####Findings and Interpretation:
+G7 Countries Strengths:<br>
+Ease of Starting a Business and Paying Taxes: G7 countries exhibit strong performance in these areas, achieving higher scores due to lower procedural requirements such as reduced steps, shorter timeframes, and lower compliance costs.<br>
+Efficient Regulatory Frameworks: The streamlined regulatory environments in G7 countries foster greater ease in establishing businesses and reducing tax burdens, promoting an overall favorable business climate.<br><br>
+
+India’s Challenges:<br>
+High Bureaucracy and Compliance Costs: India struggles with lengthy processes, excessive documentation, and high compliance costs, which negatively impact starting a business and paying taxes.<br>
+Complex and Time-Consuming Procedures: The procedural delays and financial burdens act as significant deterrents to entrepreneurship and business expansion.<br><br>
+
+Areas for Improvement in India:<br>
+Starting a Business: Reducing bureaucratic hurdles, simplifying regulatory processes, and lowering costs for business entry can facilitate greater ease of starting a business.<br>
+Paying Taxes: Simplifying tax compliance, minimizing the number of tax payments, and reducing overall tax burdens can enhance India’s tax compliance environment.<br>
+Leveraging Technology and Transparency: Adopting digital solutions, enhancing transparency, and streamlining regulatory processes can bring India closer to G7 best practices.<br><br>
+
+####Conclusion:
+The comparative analysis highlights critical gaps between the G7 countries and India in terms of starting a business and paying taxes.<br>
+India faces significant challenges driven by complex and lengthy procedures, as well as high compliance costs. Addressing these issues by adopting G7 best practices—such as streamlining processes, reducing bureaucratic requirements, and leveraging technology—can foster a more conducive business environment.<br> Such reforms are essential to attract investments, boost economic growth, and ensure long-term competitiveness in the global business landscape.
