@@ -147,3 +147,10 @@ This analysis identifies key areas where India lags behind G7 countries and prov
 - **Visualizations**: Output charts and maps.
 - **Reports**: Detailed findings and recommendations.
 
+---
+## 🙋‍♀️ Author
+
+**Siddhi Gholap**  
+Master’s in Analytics – Tata Institute of Social Sciences  
+[LinkedIn](https://www.linkedin.com/in/siddhi-gholap)
+
